@@ -1,0 +1,155 @@
+suite: Upstream workload and Secret contract
+templates:
+  - charts/harbor/templates/core/core-dpl.yaml
+  - charts/harbor/templates/core/core-cm.yaml
+  - charts/harbor/templates/jobservice/jobservice-dpl.yaml
+  - charts/harbor/templates/jobservice/jobservice-cm.yaml
+  - charts/harbor/templates/registry/registry-dpl.yaml
+  - charts/harbor/templates/registry/registry-cm.yaml
+  - charts/harbor/templates/nginx/service.yaml
+  - charts/harbor/templates/trivy/trivy-sts.yaml
+release:
+  name: harbor
+  namespace: harbor
+values:
+  - ../ci/all-on-values.yaml
+tests:
+  - it: preserves core replicas, image and the Infisical-backed Secrets
+    template: charts/harbor/templates/core/core-dpl.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/goharbor/harbor-core:v2.14.0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HARBOR_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: harbor-admin-credentials-secret
+                key: HARBOR_ADMIN_PASSWORD
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRESQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: pg-harbor-database-credentials-secret
+                key: password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REGISTRY_CREDENTIAL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: harbor-registry-secret-v1
+                key: REGISTRY_PASSWD
+  - it: reads S3 credentials from the Infisical Secret
+    template: charts/harbor/templates/registry/registry-dpl.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: harbor-s3-secret
+  - it: stores images in S3 without redirects
+    template: charts/harbor/templates/registry/registry-cm.yaml
+    asserts:
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: "(?s)s3:.*bucket: fake-bucket.*regionendpoint: https://s3.example.test"
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: "(?s)redirect:\\s+disable: true"
+  - it: keeps the plain HTTP Service that Traefik routes to
+    template: charts/harbor/templates/nginx/service.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: harbor
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].port
+          value: 80
+  - it: does not install Trivy
+    template: charts/harbor/templates/trivy/trivy-sts.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: takes the core Redis URLs from the wrapper Secret
+    template: charts/harbor/templates/core/core-dpl.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: _REDIS_URL_CORE
+            valueFrom:
+              secretKeyRef:
+                name: harbor-redis-secret
+                key: _REDIS_URL_CORE
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: _REDIS_URL_REG
+            valueFrom:
+              secretKeyRef:
+                name: harbor-redis-secret
+                key: _REDIS_URL_REG
+  - it: takes the jobservice Redis URLs from the wrapper Secret
+    template: charts/harbor/templates/jobservice/jobservice-dpl.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: JOB_SERVICE_POOL_REDIS_URL
+            valueFrom:
+              secretKeyRef:
+                name: harbor-redis-secret
+                key: JOB_SERVICE_POOL_REDIS_URL
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: _REDIS_URL_CORE
+            valueFrom:
+              secretKeyRef:
+                name: harbor-redis-secret
+                key: _REDIS_URL_CORE
+  - it: gives the registry and registryctl the Redis password from the wrapper Secret
+    template: charts/harbor/templates/registry/registry-dpl.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[1].env
+          content:
+            name: REGISTRY_REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: harbor-redis-secret
+                key: REDIS_PASSWORD
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REGISTRY_REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: harbor-redis-secret
+                key: REDIS_PASSWORD
+  - it: keeps the Redis password out of the ConfigMaps
+    template: charts/harbor/templates/core/core-cm.yaml
+    asserts:
+      - equal:
+          path: data._REDIS_URL_CORE
+          value: "redis://redis-harbor-master.harbor.svc.cluster.local:6379/0?idle_timeout_seconds=30"
+  - it: keeps the Redis password out of the jobservice config file
+    template: charts/harbor/templates/jobservice/jobservice-cm.yaml
+    asserts:
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: 'redis_url: "redis://redis-harbor-master'

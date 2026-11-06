@@ -1,0 +1,34 @@
+# Fake connection and host values for local and CI validation.
+infisical:
+  authRef:
+    name: fake-auth
+    namespace: default
+  projectSlug: fake-project
+  environmentSlug: fake-env
+adminSecret:
+  enabled: true
+secretKey:
+  enabled: true
+registrySecret:
+  enabled: true
+s3Secret:
+  enabled: true
+redisSecret:
+  enabled: true
+ingressRoute:
+  enabled: true
+  host: harbor.example.test
+  tlsSecretName: fake-tls
+  middlewares:
+    - name: fake-headers
+      namespace: default
+harbor:
+  externalURL: https://harbor.example.test
+  persistence:
+    imageChartStorage:
+      s3:
+        bucket: fake-bucket
+        regionendpoint: https://s3.example.test
+  database:
+    external:
+      host: fake-db.example.test

@@ -1,0 +1,76 @@
+suite: Required connection and schema guards
+templates:
+  - templates/secrets.yaml
+  - templates/ingressroute.yaml
+tests:
+  - it: requires infisical.authRef.name
+    template: templates/secrets.yaml
+    values:
+      - ../ci/all-on-values.yaml
+    set:
+      infisical.authRef.name: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: infisical.authRef.name is required when adminSecret is enabled
+  - it: requires infisical.authRef.namespace
+    template: templates/secrets.yaml
+    values:
+      - ../ci/all-on-values.yaml
+    set:
+      infisical.authRef.namespace: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: infisical.authRef.namespace is required when adminSecret is enabled
+  - it: requires infisical.projectSlug
+    template: templates/secrets.yaml
+    values:
+      - ../ci/all-on-values.yaml
+    set:
+      infisical.projectSlug: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: infisical.projectSlug is required when adminSecret is enabled
+  - it: requires infisical.environmentSlug
+    template: templates/secrets.yaml
+    values:
+      - ../ci/all-on-values.yaml
+    set:
+      infisical.environmentSlug: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: infisical.environmentSlug is required when adminSecret is enabled
+  - it: requires ingressRoute.host
+    template: templates/ingressroute.yaml
+    values:
+      - ../ci/all-on-values.yaml
+    set:
+      ingressRoute.host: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: ingressRoute.host is required when ingressRoute is enabled
+  - it: requires ingressRoute.tlsSecretName
+    template: templates/ingressroute.yaml
+    values:
+      - ../ci/all-on-values.yaml
+    set:
+      ingressRoute.tlsSecretName: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: ingressRoute.tlsSecretName is required when ingressRoute is enabled
+  - it: rejects unknown wrapper keys
+    template: templates/secrets.yaml
+    set:
+      adminSecret.typo: true
+    asserts:
+      - failedTemplate:
+          errorMessage: |
+            values don't meet the specifications of the schema(s) in the following chart(s):
+            harbor:
+            - adminSecret: Additional property typo is not allowed
+  - it: permits upstream extensions
+    template: templates/secrets.yaml
+    set:
+      harbor.anyUpstreamKey: x
+    asserts:
+      - hasDocuments:
+          count: 0
