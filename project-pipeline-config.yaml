@@ -1,0 +1,11 @@
+project-config:
+  project-name: harbor
+  project-description: "Helm chart that installs the Harbor container registry in the cluster"
+  project-namespace: harbor
+  publish-targets: [ghcr]
+  pipeline-steps:
+    helm-test: true
+    trivy-scan: true
+    opengrep-scan: true
+    helm-package-upload: true
+    argo-deploy: true

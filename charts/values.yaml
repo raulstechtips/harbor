@@ -1,0 +1,272 @@
+# Environment values live in cluster-config. No secret values here.
+infisical:
+  authRef:
+    name: ""
+    namespace: ""
+  projectSlug: ""
+  environmentSlug: ""
+
+# One InfisicalStaticSecret per Secret that Harbor reads. Each name is the live Secret name.
+adminSecret:
+  enabled: false
+  secretName: harbor-admin-credentials-secret
+  secretPath: /harbor/app
+  recursive: true
+  refreshInterval: 60s
+  keys:
+    HARBOR_ADMIN_PASSWORD: HARBOR_ADMIN_PASSWORD
+
+secretKey:
+  enabled: false
+  secretName: harbor-secret-key
+  secretPath: /harbor/app
+  recursive: true
+  refreshInterval: 60s
+  keys:
+    secretKey: HARBOR_SECRET_KEY
+
+registrySecret:
+  enabled: false
+  secretName: harbor-registry-secret-v1
+  secretPath: /harbor/registry
+  recursive: true
+  refreshInterval: 60s
+  keys:
+    REGISTRY_PASSWD: HARBOR_REGISTRY_PASSWD
+    REGISTRY_HTPASSWD: HARBOR_REGISTRY_HTPASSWD
+
+# Registry storage credentials. The live source path is the MinIO longhorn user.
+s3Secret:
+  enabled: false
+  secretName: harbor-s3-secret
+  secretPath: /minio/users/longhorn
+  recursive: true
+  refreshInterval: 60s
+  keys:
+    REGISTRY_STORAGE_S3_ACCESSKEY: AWS_ACCESS_KEY_ID
+    REGISTRY_STORAGE_S3_SECRETKEY: AWS_SECRET_ACCESS_KEY
+
+# Password and full URLs of the redis-harbor instance (see templates/redis-secret.yaml).
+# Today a hand-applied InfisicalSecret owns this Secret. redis-harbor also reads REDIS_PASSWORD.
+redisSecret:
+  enabled: false
+  secretName: harbor-redis-secret
+  secretPath: /harbor/redis
+  recursive: true
+  refreshInterval: 60s
+  passwordKey: HARBOR_REDIS_PASSWORD
+
+ingressRoute:
+  enabled: false
+  entryPoints: [websecure]
+  ingressClass: traefik-external
+  middlewares: []
+  host: ""
+  tlsSecretName: ""
+
+# Only differences from upstream 1.18.0 defaults. Its default image tags are already v2.14.0.
+harbor:
+  # Traefik terminates TLS and routes to the plain ClusterIP Service "harbor".
+  expose:
+    type: clusterIP
+    tls:
+      enabled: false
+  # Images and job logs go to S3 and the external database, so no volumes are needed.
+  persistence:
+    enabled: false
+    persistentVolumeClaim:
+      registry:
+        storageClass: "-"
+      jobservice:
+        jobLog:
+          storageClass: "-"
+      trivy:
+        storageClass: "-"
+    imageChartStorage:
+      # MinIO does not support redirects.
+      disableredirect: true
+      type: s3
+      s3:
+        existingSecret: harbor-s3-secret
+        region: us-east-1
+  existingSecretAdminPassword: harbor-admin-credentials-secret
+  existingSecretSecretKey: harbor-secret-key
+  cache:
+    enabled: true
+  portal:
+    image:
+      repository: docker.io/goharbor/harbor-portal
+    replicas: 3
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 30m
+      limits:
+        memory: 256Mi
+        cpu: 200m
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/component
+                    operator: In
+                    values: [portal]
+              topologyKey: kubernetes.io/hostname
+  core:
+    image:
+      repository: docker.io/goharbor/harbor-core
+    replicas: 3
+    # Redis URLs with the password, from the wrapper Secret (templates/redis-secret.yaml).
+    extraEnvVars:
+      - name: _REDIS_URL_CORE
+        valueFrom:
+          secretKeyRef:
+            name: harbor-redis-secret
+            key: _REDIS_URL_CORE
+      - name: _REDIS_URL_REG
+        valueFrom:
+          secretKeyRef:
+            name: harbor-redis-secret
+            key: _REDIS_URL_REG
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 30m
+      limits:
+        memory: 512Mi
+        cpu: 1000m
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/component
+                    operator: In
+                    values: [core]
+              topologyKey: kubernetes.io/hostname
+  jobservice:
+    image:
+      repository: docker.io/goharbor/harbor-jobservice
+    replicas: 3
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 30m
+      limits:
+        memory: 512Mi
+        cpu: 1000m
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/component
+                    operator: In
+                    values: [jobservice]
+              topologyKey: kubernetes.io/hostname
+    # Job logs go to the database, because there is no job log volume.
+    jobLoggers:
+      - database
+    # Redis URLs with the password, from the wrapper Secret (templates/redis-secret.yaml).
+    extraEnvVars:
+      - name: JOB_SERVICE_POOL_REDIS_URL
+        valueFrom:
+          secretKeyRef:
+            name: harbor-redis-secret
+            key: JOB_SERVICE_POOL_REDIS_URL
+      - name: _REDIS_URL_CORE
+        valueFrom:
+          secretKeyRef:
+            name: harbor-redis-secret
+            key: _REDIS_URL_CORE
+  registry:
+    registry:
+      image:
+        repository: docker.io/goharbor/registry-photon
+      resources:
+        requests:
+          memory: 256Mi
+          cpu: 30m
+        limits:
+          memory: 512Mi
+          cpu: 1000m
+      # Redis password from the wrapper Secret (templates/redis-secret.yaml).
+      extraEnvVars:
+        - name: REGISTRY_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: harbor-redis-secret
+              key: REDIS_PASSWORD
+    controller:
+      image:
+        repository: docker.io/goharbor/harbor-registryctl
+      resources:
+        requests:
+          memory: 256Mi
+          cpu: 30m
+        limits:
+          memory: 512Mi
+          cpu: 1000m
+      # Redis password from the wrapper Secret (templates/redis-secret.yaml).
+      extraEnvVars:
+        - name: REGISTRY_REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: harbor-redis-secret
+              key: REDIS_PASSWORD
+    replicas: 3
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/component
+                    operator: In
+                    values: [registry]
+              topologyKey: kubernetes.io/hostname
+    credentials:
+      existingSecret: harbor-registry-secret-v1
+  trivy:
+    enabled: false
+  database:
+    type: external
+    external:
+      username: pg-harbor-admin
+      # The password comes from this Secret (reflected from the CNPG namespace), key "password".
+      existingSecret: pg-harbor-database-credentials-secret
+  redis:
+    type: external
+    external:
+      # No password or existingSecret here: existingSecret makes the chart call "lookup",
+      # which Argo CD cannot run. The wrapper Secret supplies the password (extraEnvVars).
+      addr: redis-harbor-master.harbor.svc.cluster.local:6379
+  exporter:
+    image:
+      repository: docker.io/goharbor/harbor-exporter
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 30m
+      limits:
+        memory: 512Mi
+        cpu: 1000m
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/component
+                    operator: In
+                    values: [exporter]
+              topologyKey: kubernetes.io/hostname

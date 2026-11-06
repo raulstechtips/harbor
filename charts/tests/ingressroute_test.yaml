@@ -1,0 +1,40 @@
+suite: Traefik route wiring
+templates:
+  - templates/ingressroute.yaml
+release:
+  name: harbor
+  namespace: harbor
+tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: preserves route identity, host, middlewares and service
+    values:
+      - ../ci/all-on-values.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: harbor-ingress-prod
+      - equal:
+          path: metadata.annotations["kubernetes.io/ingress.class"]
+          value: traefik-external
+      - equal:
+          path: spec.entryPoints
+          value: [websecure]
+      - equal:
+          path: spec.routes[0].match
+          value: Host(`harbor.example.test`)
+      - equal:
+          path: spec.routes[0].middlewares
+          value:
+            - name: fake-headers
+              namespace: default
+      - equal:
+          path: spec.routes[0].services
+          value:
+            - name: harbor
+              port: 80
+      - equal:
+          path: spec.tls.secretName
+          value: fake-tls
