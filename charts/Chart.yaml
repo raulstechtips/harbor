@@ -2,7 +2,7 @@ apiVersion: v2
 name: harbor
 description: Harbor container registry with Infisical secrets and a Traefik route
 type: application
-version: 0.0.0
+version: 0.1.0-main-6f750c5-2
 appVersion: "2.14.0"
 dependencies:
   - name: harbor
