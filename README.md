@@ -7,7 +7,7 @@ templates. Add five InfisicalStaticSecrets and the existing Traefik IngressRoute
 Harbor uses external PostgreSQL (`pg-prod` CNPG cluster) and S3 storage (MinIO).
 This wrapper also installs our custom Redis chart from
 `oci://ghcr.io/raulstechtips/charts/redis`, pinned to
-`0.1.0-feature-devsecops-190-087d631-8eb3efb-5`.
+`0.1.0-main-4353890-1`.
 The upstream Harbor Redis remains disabled (`harbor.redis.type: external`).
 
 ## Before first install
