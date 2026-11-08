@@ -9,6 +9,7 @@
     "registrySecret",
     "s3Secret",
     "redisSecret",
+    "redis",
     "ingressRoute",
     "harbor"
   ],
@@ -62,6 +63,9 @@
       "type": "object"
     },
     "harbor": {
+      "type": "object"
+    },
+    "redis": {
       "type": "object"
     },
     "infisical": {

@@ -8,3 +8,6 @@ dependencies:
   - name: harbor
     version: 1.18.0
     repository: https://helm.goharbor.io
+  - name: redis
+    version: 0.1.0-feature-devsecops-190-087d631-8eb3efb-5
+    repository: oci://ghcr.io/raulstechtips/charts

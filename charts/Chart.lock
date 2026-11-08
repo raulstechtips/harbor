@@ -2,5 +2,8 @@ dependencies:
 - name: harbor
   repository: https://helm.goharbor.io
   version: 1.18.0
-digest: sha256:f5747a000de9582edb75edbb78f2c5af354831155034ca64f5942719658e5b02
-generated: "2026-11-06T17:22:09.89865-05:00"
+- name: redis
+  repository: oci://ghcr.io/raulstechtips/charts
+  version: 0.1.0-feature-devsecops-190-087d631-8eb3efb-5
+digest: sha256:485428fbe4b7a354dc9fe4ed43afac64b8282df4fe6cbbfe3b69c03dc5270420
+generated: "2026-11-07T19:55:19.800209-05:00"

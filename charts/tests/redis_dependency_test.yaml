@@ -1,0 +1,69 @@
+suite: Custom Redis dependency
+templates:
+  - charts/redis/templates/services.yaml
+  - charts/redis/templates/statefulsets.yaml
+  - charts/redis/templates/networkpolicy.yaml
+  - charts/redis/templates/certificate.yaml
+  - charts/redis/templates/auth.yaml
+release:
+  name: harbor
+  namespace: harbor
+tests:
+  - it: exposes the standalone client endpoint used by Harbor
+    template: charts/redis/templates/services.yaml
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.name
+          value: harbor-redis
+      - equal:
+          path: spec.ports[0].port
+          value: 6379
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: redis
+  - it: installs only one Redis pod and mounts the existing password
+    template: charts/redis/templates/statefulsets.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.replicas
+          value: 1
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: auth
+            secret:
+              secretName: harbor-redis-secret
+              defaultMode: 0440
+              items:
+                - key: REDIS_PASSWORD
+                  path: password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TLS_ENABLED
+            value: "false"
+  - it: permits Harbor pods with the actual upstream instance label
+    template: charts/redis/templates/networkpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels
+          value:
+            app.kubernetes.io/instance: harbor
+      - equal:
+          path: spec.ingress[0].ports
+          value:
+            - protocol: TCP
+              port: 6379
+  - it: does not create a certificate for plaintext Harbor clients
+    template: charts/redis/templates/certificate.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: does not generate or separately synchronize a Redis password
+    template: charts/redis/templates/auth.yaml
+    asserts:
+      - hasDocuments:
+          count: 0

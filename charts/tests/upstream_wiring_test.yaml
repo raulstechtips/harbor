@@ -146,10 +146,25 @@ tests:
     asserts:
       - equal:
           path: data._REDIS_URL_CORE
-          value: "redis://redis-harbor-master.harbor.svc.cluster.local:6379/0?idle_timeout_seconds=30"
+          value: "redis://harbor-redis:6379/0?idle_timeout_seconds=30"
   - it: keeps the Redis password out of the jobservice config file
     template: charts/harbor/templates/jobservice/jobservice-cm.yaml
     asserts:
       - matchRegex:
           path: data["config.yml"]
-          pattern: 'redis_url: "redis://redis-harbor-master'
+          pattern: 'redis_url: "redis://harbor-redis:6379/1"'
+  - it: directs the registry to the bundled Redis without TLS
+    template: charts/harbor/templates/registry/registry-cm.yaml
+    asserts:
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: 'addr: harbor-redis:6379'
+      - matchRegex:
+          path: data["config.yml"]
+          pattern: 'enableTLS: false'
+  - it: labels core pods for Redis NetworkPolicy access
+    template: charts/harbor/templates/core/core-dpl.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/instance"]
+          value: harbor

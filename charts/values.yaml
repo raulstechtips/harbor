@@ -46,8 +46,8 @@ s3Secret:
     REGISTRY_STORAGE_S3_ACCESSKEY: AWS_ACCESS_KEY_ID
     REGISTRY_STORAGE_S3_SECRETKEY: AWS_SECRET_ACCESS_KEY
 
-# Password and full URLs of the redis-harbor instance (see templates/redis-secret.yaml).
-# Today a hand-applied InfisicalSecret owns this Secret. redis-harbor also reads REDIS_PASSWORD.
+# Password and full URLs for the bundled Redis (see templates/redis-secret.yaml).
+# Harbor and Redis read the same Secret. Enable sync or supply the Secret before install.
 redisSecret:
   enabled: false
   secretName: harbor-redis-secret
@@ -55,6 +55,17 @@ redisSecret:
   recursive: true
   refreshInterval: 60s
   passwordKey: HARBOR_REDIS_PASSWORD
+
+# A separate dependency, not the Redis bundled in the upstream Harbor chart.
+# Keep fullnameOverride and harbor.redis.external.addr in agreement.
+redis:
+  fullnameOverride: harbor-redis
+  mode: standalone
+  auth:
+    existingSecret: harbor-redis-secret
+    passwordKey: REDIS_PASSWORD
+  tls:
+    enabled: false
 
 ingressRoute:
   enabled: false
@@ -248,7 +259,9 @@ harbor:
     external:
       # No password or existingSecret here: existingSecret makes the chart call "lookup",
       # which Argo CD cannot run. The wrapper Secret supplies the password (extraEnvVars).
-      addr: redis-harbor-master.harbor.svc.cluster.local:6379
+      addr: harbor-redis:6379
+      tlsOptions:
+        enable: false
   exporter:
     image:
       repository: docker.io/goharbor/harbor-exporter
