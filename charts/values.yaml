@@ -260,8 +260,6 @@ harbor:
       # No password or existingSecret here: existingSecret makes the chart call "lookup",
       # which Argo CD cannot run. The wrapper Secret supplies the password (extraEnvVars).
       addr: harbor-redis:6379
-      tlsOptions:
-        enable: false
   exporter:
     image:
       repository: docker.io/goharbor/harbor-exporter
